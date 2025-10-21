@@ -15,7 +15,11 @@ class UserOut(BaseModel):
     is_driver: bool
 
     class Config:
-        orm_mode = True
+        from_attributes = True
+
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: str
 
 # Ride Schemas
 class RideCreate(BaseModel):
@@ -31,4 +35,4 @@ class RideOut(BaseModel):
     status: str
 
     class Config:
-        orm_mode = True
+        from_attributes = True

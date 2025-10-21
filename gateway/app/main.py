@@ -39,6 +39,8 @@ init_db()
 
 @app.post("/signup", response_model=schemas.UserOut)
 def signup(user: schemas.UserCreate, db: Session = Depends(database.get_db)):
+    if db.query(models.User).filter(models.User.email == user.email).first():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
     hashed_password = auth.hash_password(user.password)
     db_user = models.User(name=user.name, email=user.email, password_hash=hashed_password, is_driver=user.is_driver)
     db.add(db_user)
@@ -47,7 +49,7 @@ def signup(user: schemas.UserCreate, db: Session = Depends(database.get_db)):
     return db_user
 
 
-@app.post("/login", response_model=schemas.UserOut)
+@app.post("/login", response_model=schemas.LoginResponse)
 def login(email: str, password: str, db: Session = Depends(database.get_db)):
     db_user = db.query(models.User).filter(models.User.email == email).first()
     if not db_user or not auth.verify_password(password, db_user.password_hash):
