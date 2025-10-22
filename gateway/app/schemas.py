@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
+from datetime import datetime
 
 # User Schemas
 class UserCreate(BaseModel):
@@ -26,17 +27,21 @@ class LoginResponse(BaseModel):
     token_type: str
 
 # Ride Schemas
-class RideCreate(BaseModel):
+class RideBase(BaseModel):
     pickup: str
     dropoff: str
 
-class RideOut(BaseModel):
+
+class RideCreate(RideBase):
+    pass
+
+
+class RideResponse(RideBase):
     id: int
     user_id: int
-    driver_id: Optional[int]
-    pickup: str
-    dropoff: str
+    driver_id: Optional[int] = None
     status: str
+    created_at: datetime
 
     class Config:
         from_attributes = True

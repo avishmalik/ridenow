@@ -4,12 +4,13 @@ from . import models, database, schemas, auth
 from sqlalchemy.orm import Session
 import redis
 import os
-import json
 import time
+from .routes import rides
 
 load_dotenv()
 
 app = FastAPI(title="RideNow API")
+app.include_router(rides.router)
 
 redis_client = redis.Redis(host=os.getenv("REDIS_HOST"), port=int(os.getenv("REDIS_PORT")))
 
@@ -58,27 +59,10 @@ def login(login_data: schemas.LoginRequest, db: Session = Depends(database.get_d
     return {"access_token": token, "token_type": "bearer"}
 
 
-@app.post("/rides", response_model=schemas.RideOut)
-def request_ride(ride: schemas.RideCreate, user_id: int, db: Session = Depends(database.get_db)):
-    db_ride = models.Ride(user_id=user_id, pickup=ride.pickup, dropoff=ride.dropoff)
-    db.add(db_ride)
-    db.commit()
-    db.refresh(db_ride)
-
-    ride_data = {"ride_id": db_ride.id, "user_id": user_id, "pickup": ride.pickup, "dropoff": ride.dropoff}
-    redis_client.rpush("ride_queue", json.dumps(ride_data))
-    return db_ride
-
-@app.get("/rides/{ride_id}", response_model=schemas.RideOut)
-def get_ride(ride_id: int, db: Session = Depends(database.get_db)):
-    db_ride = db.query(models.Ride).filter(models.Ride.id == ride_id).first()
-    if not db_ride:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ride not found")
-    return db_ride
-
 @app.get("/")
 def read_root():
     return {"message": "RideNow API is running!"}
+
 
 @app.get("/health")
 def health_check():
