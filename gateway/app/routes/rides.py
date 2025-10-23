@@ -5,9 +5,12 @@ from ..database import get_db
 from ..models import User, Ride
 from sqlalchemy.orm import Session
 from ..auth import get_current_user
+import redis
+import os
+import json
 
 router = APIRouter(prefix="/rides", tags=["Rides"])
-
+redis_client = redis.Redis(host=os.getenv("REDIS_HOST"), port=int(os.getenv("REDIS_PORT")))
 
 @router.post("/", response_model=RideResponse)
 def create_ride(ride: RideCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -22,6 +25,9 @@ def create_ride(ride: RideCreate, db: Session = Depends(get_db), current_user: U
     db.add(db_ride)
     db.commit()
     db.refresh(db_ride)
+
+    ride_payload = {"ride_id": db_ride.id}
+    redis_client.lpush("ride_queue", json.dumps(ride_payload))
     return db_ride
 
 
@@ -42,6 +48,21 @@ def assign_ride(ride_id: int, db: Session = Depends(get_db), current_user: User 
         raise HTTPException(status_code=400, detail="Ride already assigned or completed")
     db_ride.driver_id = current_user.id
     db_ride.status = "assigned"
+    db.commit()
+    db.refresh(db_ride)
+    return db_ride
+
+
+@router.post("/{ride_id}/complete", response_model=RideResponse)
+def complete_ride(ride_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if not current_user.is_driver:
+        raise HTTPException(status_code=403, detail="Only drivers can complete rides")
+    db_ride = db.query(Ride).filter(Ride.id == ride_id).first()
+    if not db_ride:
+        raise HTTPException(status_code=404, detail="Ride not found")
+    if db_ride.status != "assigned":
+        raise HTTPException(status_code=400, detail="Ride not assigned to driver")
+    db_ride.status = "completed"
     db.commit()
     db.refresh(db_ride)
     return db_ride
