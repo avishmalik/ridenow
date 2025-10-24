@@ -64,6 +64,14 @@ def complete_ride(ride_id: int, db: Session = Depends(get_db), current_user: Use
         raise HTTPException(status_code=400, detail="Ride not assigned to driver")
     db_ride.status = "completed"
     db.commit()
+    payload = {
+        "type": "ride_completed",
+        "ride_id": db_ride.id,
+        "user_id": db_ride.user_id,
+        "driver_id": db_ride.driver_id,
+        "status": db_ride.status
+    }
+    redis_client.publish("ride_updates", json.dumps(payload))
     db.refresh(db_ride)
     return db_ride
 

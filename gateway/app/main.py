@@ -6,11 +6,17 @@ import redis
 import os
 import time
 from .routes import rides
+from .websocket_route import router as ws_router
+import asyncio
+import threading
+from .ws_forwarder import WsForwarder
+from .ws_manager import redis_listener
 
 load_dotenv()
 
 app = FastAPI(title="RideNow API")
 app.include_router(rides.router)
+app.include_router(ws_router)
 
 redis_client = redis.Redis(host=os.getenv("REDIS_HOST"), port=int(os.getenv("REDIS_PORT")))
 
@@ -67,3 +73,13 @@ def read_root():
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+
+
+@app.on_event("startup")
+async def startup_event():
+    loop = asyncio.get_event_loop()
+    app.state.loop = loop
+    app.state.ws_forwarder = WsForwarder(loop)
+
+    t = threading.Thread(target=redis_listener, args=(app,), daemon=True)
+    t.start()

@@ -28,8 +28,19 @@ def assign_driver(db: Session, ride_id: int):
         if not driver:
             print("No driver available")
             return
-        db.query(models.Ride).filter(models.Ride.id == ride_id).update({"driver_id": driver.id, "status": "assigned"})
+        
+        db_ride = db.query(models.Ride).filter(models.Ride.id == ride_id).first()
+        db_ride.driver_id = driver.id
+        db_ride.status = "assigned"
         db.commit()
+        payload = {
+            "type": "ride_assigned",
+            "ride_id": db_ride.id,
+            "user_id": db_ride.user_id,
+            "driver_id": db_ride.driver_id,
+            "status": db_ride.status
+        }
+        redis_client.publish("ride_updates", json.dumps(payload))
         print(f"Driver {driver.id} assigned to ride {ride_id}")
         return driver
     except Exception:
