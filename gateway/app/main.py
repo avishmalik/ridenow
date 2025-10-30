@@ -6,18 +6,18 @@ import redis
 import os
 import time
 from .routes import rides
-from .websocket_route import router as ws_router
 import asyncio
 import threading
 from .ws_forwarder import WsForwarder
 from .ws_manager import redis_listener
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from . import ws_routes
 load_dotenv()
 
 app = FastAPI(title="RideNow API")
 app.include_router(rides.router)
-app.include_router(ws_router)
+app.include_router(ws_routes.router)
 
 app.add_middleware(
     CORSMiddleware,

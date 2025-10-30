@@ -3,165 +3,220 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RideNow Dashboard</title>
+  <title>RideNow | Realtime Dashboard</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: #f4f6f8;
+      background: #f8fafc;
+      margin: 0;
       padding: 20px;
+      color: #222;
     }
-    h1 { color: #333; }
-    section {
+    h2 {
+      color: #007bff;
+    }
+    .section {
       background: white;
-      padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      border-radius: 12px;
+      padding: 15px 20px;
       margin-bottom: 20px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
     }
     input, button {
       margin: 5px;
       padding: 8px;
-      font-size: 14px;
+      border-radius: 5px;
+      border: 1px solid #ddd;
     }
-    .log {
+    button {
+      cursor: pointer;
+      background: #007bff;
+      color: white;
+      border: none;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    #log {
       background: #111;
       color: #0f0;
       padding: 10px;
-      height: 200px;
+      height: 250px;
       overflow-y: auto;
+      border-radius: 6px;
       font-family: monospace;
+    }
+    .ride-box {
+      background: #eef;
       border-radius: 8px;
+      margin: 5px 0;
+      padding: 8px 10px;
     }
   </style>
 </head>
 <body>
-  <h1>🚖 RideNow Dashboard</h1>
+  <h2>🚕 RideNow — Real-time Dashboard</h2>
 
-  <!-- AUTH SECTION -->
-  <section>
-    <h2>Login / Signup</h2>
-    <input id="name" placeholder="Name (for signup)" />
-    <input id="email" placeholder="Email" />
-    <input id="password" placeholder="Password" type="password" />
-    <label><input type="checkbox" id="is_driver" /> Driver?</label><br />
+  <div class="section">
+    <h3>Signup</h3>
+    <input id="signupName" placeholder="Name">
+    <input id="signupEmail" placeholder="Email">
+    <input id="signupPassword" type="password" placeholder="Password">
+    <label><input type="checkbox" id="isDriver"> Is Driver</label>
     <button onclick="signup()">Signup</button>
+  </div>
+
+  <div class="section">
+    <h3>Login</h3>
+    <input id="loginEmail" placeholder="Email">
+    <input id="loginPassword" type="password" placeholder="Password">
     <button onclick="login()">Login</button>
-  </section>
+  </div>
 
-  <!-- RIDE SECTION -->
-  <section id="rides-section" style="display:none;">
-    <h2>Ride Actions</h2>
-    <p><strong>User:</strong> <span id="user-info"></span></p>
+  <div class="section">
+    <h3>WebSocket</h3>
+    <button onclick="connectWS()">Connect WebSocket</button>
+    <p id="wsStatus">Status: ❌ Disconnected</p>
+  </div>
 
-    <input id="pickup" placeholder="Pickup location" />
-    <input id="dropoff" placeholder="Dropoff location" />
-    <button onclick="createRide()">Request Ride</button>
+  <div class="section">
+    <h3>Ride Actions</h3>
+    <input id="pickup" placeholder="Pickup location">
+    <input id="dropoff" placeholder="Dropoff location">
+    <button onclick="requestRide()">Request Ride</button><br>
 
-    <button onclick="fetchRides()">View All Rides</button>
-    <button onclick="fetchMyRides()">My Rides</button>
+    <input id="assignRideId" placeholder="Ride ID to assign">
+    <button onclick="assignRide()">Assign Ride</button><br>
 
-    <div id="rides"></div>
-  </section>
+    <input id="completeRideId" placeholder="Ride ID to complete">
+    <button onclick="completeRide()">Complete Ride</button><br>
 
-  <section>
-    <h2>WebSocket Logs</h2>
-    <div class="log" id="ws-log"></div>
-  </section>
+    <hr>
+    <button onclick="getMyRides()">Get My Rides</button>
+    <button onclick="getAllRides()">Get All Rides</button>
+    <input id="rideId" placeholder="Ride ID">
+    <button onclick="getRideById()">Get Ride by ID</button>
+  </div>
+
+  <div class="section">
+    <h3>Logs</h3>
+    <div id="log"></div>
+  </div>
 
   <script>
-    const API_URL = "http://localhost:8000";
     let token = null;
-    let ws = null;
+    let socket = null;
+    const BASE_URL = "http://localhost:8000"; // Adjust if needed
 
-    function logWs(message) {
-      const log = document.getElementById("ws-log");
-      log.innerHTML += message + "<br>";
-      log.scrollTop = log.scrollHeight;
+    function log(msg) {
+      const logBox = document.getElementById("log");
+      logBox.innerHTML += msg + "<br>";
+      logBox.scrollTop = logBox.scrollHeight;
     }
 
     async function signup() {
-      const res = await fetch(`${API_URL}/signup`, {
+      const name = document.getElementById("signupName").value;
+      const email = document.getElementById("signupEmail").value;
+      const password = document.getElementById("signupPassword").value;
+      const isDriver = document.getElementById("isDriver").checked;
+
+      const res = await fetch(`${BASE_URL}/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: document.getElementById("name").value,
-          email: document.getElementById("email").value,
-          password: document.getElementById("password").value,
-          is_driver: document.getElementById("is_driver").checked
-        })
+        body: JSON.stringify({ name, email, password, is_driver: isDriver }),
       });
       const data = await res.json();
-      alert(res.ok ? "Signup successful" : data.detail);
+      log("✅ Signup: " + JSON.stringify(data));
     }
 
     async function login() {
-      const res = await fetch(`${API_URL}/login`, {
+      const email = document.getElementById("loginEmail").value;
+      const password = document.getElementById("loginPassword").value;
+
+      const res = await fetch(`${BASE_URL}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: document.getElementById("email").value,
-          password: document.getElementById("password").value
-        })
+        body: JSON.stringify({ email, password }),
       });
-      const data = await res.json();
-      if (res.ok) {
-        token = data.access_token;
-        document.getElementById("rides-section").style.display = "block";
-        document.getElementById("user-info").innerText = document.getElementById("email").value;
-        connectWs();
-      } else {
-        alert(data.detail);
+
+      if (!res.ok) {
+        log("❌ Login failed: " + res.status);
+        return;
       }
+
+      const data = await res.json();
+      token = data.access_token;
+      log("✅ Logged in. Token stored.");
     }
 
-    async function createRide() {
-      const res = await fetch(`${API_URL}/rides/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          pickup: document.getElementById("pickup").value,
-          dropoff: document.getElementById("dropoff").value
-        })
+    function connectWS() {
+      if (!token) {
+        log("⚠️ Please login first.");
+        return;
+      }
+
+      socket = new WebSocket(`ws://localhost:8000/ws?token=${token}`);
+      socket.onopen = () => {
+        document.getElementById("wsStatus").innerText = "Status: ✅ Connected";
+        log("🟢 WebSocket connected!");
+      };
+      socket.onmessage = (event) => log("📨 WS Message: " + event.data);
+      socket.onclose = () => {
+        document.getElementById("wsStatus").innerText = "Status: ❌ Disconnected";
+        log("🔴 WebSocket disconnected.");
+      };
+      socket.onerror = (err) => log("⚠️ WebSocket error: " + err);
+    }
+
+    function requestRide() {
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        log("⚠️ Connect WebSocket first.");
+        return;
+      }
+      const pickup = document.getElementById("pickup").value;
+      const dropoff = document.getElementById("dropoff").value;
+      socket.send(JSON.stringify({ action: "ride_requested", pickup, dropoff }));
+      log("🚗 Ride requested.");
+    }
+
+    function assignRide() {
+      const rideId = document.getElementById("assignRideId").value;
+      if (!rideId) return log("⚠️ Enter ride ID");
+      socket.send(JSON.stringify({ action: "ride_assigned", ride_id: parseInt(rideId) }));
+      log(`👨‍✈️ Assigned ride ID ${rideId}.`);
+    }
+
+    function completeRide() {
+      const rideId = document.getElementById("completeRideId").value;
+      if (!rideId) return log("⚠️ Enter ride ID");
+      socket.send(JSON.stringify({ action: "ride_completed", ride_id: parseInt(rideId) }));
+      log(`🏁 Completed ride ID ${rideId}.`);
+    }
+
+    async function getMyRides() {
+      const res = await fetch(`${BASE_URL}/rides/my`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
-      alert(res.ok ? "Ride created!" : data.detail);
+      log("🧍‍♂️ My Rides: " + JSON.stringify(data, null, 2));
     }
 
-    async function fetchRides() {
-      const res = await fetch(`${API_URL}/rides/`, {
-        headers: { "Authorization": `Bearer ${token}` }
+    async function getAllRides() {
+      const res = await fetch(`${BASE_URL}/rides`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
-      displayRides(data);
+      log("🌍 All Rides: " + JSON.stringify(data, null, 2));
     }
 
-    async function fetchMyRides() {
-      const res = await fetch(`${API_URL}/rides/my`, {
-        headers: { "Authorization": `Bearer ${token}` }
+    async function getRideById() {
+      const rideId = document.getElementById("rideId").value;
+      if (!rideId) return log("⚠️ Enter ride ID");
+      const res = await fetch(`${BASE_URL}/rides/${rideId}/assign`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
-      displayRides(data);
-    }
-
-    function displayRides(rides) {
-      const container = document.getElementById("rides");
-      container.innerHTML = "<h3>Rides:</h3>";
-      rides.forEach(r => {
-        const div = document.createElement("div");
-        div.innerHTML = `#${r.id} | ${r.pickup} → ${r.dropoff} | Status: ${r.status}`;
-        container.appendChild(div);
-      });
-    }
-
-    function connectWs() {
-      ws = new WebSocket(`ws://localhost:8000/ws?token=${token}`);
-      ws.onopen = () => logWs("✅ WebSocket connected");
-      ws.onmessage = (e) => logWs(`📩 ${e.data}`);
-      ws.onclose = () => logWs("❌ WebSocket closed");
-      ws.onerror = (err) => logWs(`⚠️ WebSocket error: ${err.message}`);
+      log(`🔍 Ride ${rideId}: ` + JSON.stringify(data, null, 2));
     }
   </script>
 </body>
