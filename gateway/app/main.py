@@ -11,14 +11,26 @@ import asyncio
 import threading
 from .ws_forwarder import WsForwarder
 from .ws_manager import redis_listener
-
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 load_dotenv()
 
 app = FastAPI(title="RideNow API")
 app.include_router(rides.router)
 app.include_router(ws_router)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # or ["http://127.0.0.1:5500"] if you’re opening HTML in browser
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 redis_client = redis.Redis(host=os.getenv("REDIS_HOST"), port=int(os.getenv("REDIS_PORT")))
+
+from fastapi.staticfiles import StaticFiles
+app.mount("/static", StaticFiles(directory="gateway/app/static", html=True), name="static")
 
 # Initialize database tables with retry logic
 def init_db():
@@ -58,6 +70,7 @@ def signup(user: schemas.UserCreate, db: Session = Depends(database.get_db)):
 
 @app.post("/login", response_model=schemas.LoginResponse)
 def login(login_data: schemas.LoginRequest, db: Session = Depends(database.get_db)):
+    print(login_data)
     db_user = db.query(models.User).filter(models.User.email == login_data.email).first()
     if not db_user or not auth.verify_password(login_data.password, db_user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
@@ -67,7 +80,7 @@ def login(login_data: schemas.LoginRequest, db: Session = Depends(database.get_d
 
 @app.get("/")
 def read_root():
-    return {"message": "RideNow API is running!"}
+    return FileResponse(os.path.join("gateway/app/static", "index.html"))
 
 
 @app.get("/health")

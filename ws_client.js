@@ -2,7 +2,7 @@
 import WebSocket from "ws";
 
 // Replace this with your valid JWT token
-const TOKEN = "<YOUR_JWT_TOKEN>";
+const TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzIiwiZXhwIjoxNzYxNzk4NTU3fQ.On6fofBUg6HT4amlAlmuZBayjLuFZDeMqUKl5U7UQMY";
 
 // ✅ Correct WebSocket URL format
 const WS_URL = `ws://localhost:8000/ws?token=${TOKEN}`;
