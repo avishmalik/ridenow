@@ -10,7 +10,11 @@ import os
 import json
 
 router = APIRouter(prefix="/rides", tags=["Rides"])
-redis_client = redis.Redis(host=os.getenv("REDIS_HOST"), port=int(os.getenv("REDIS_PORT")))
+redis_client = redis.Redis(
+    host=os.getenv("REDIS_HOST"), 
+    port=int(os.getenv("REDIS_PORT")),
+    decode_responses=True
+)
 
 @router.post("/", response_model=RideResponse)
 def create_ride(ride: RideCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -26,8 +30,24 @@ def create_ride(ride: RideCreate, db: Session = Depends(get_db), current_user: U
     db.commit()
     db.refresh(db_ride)
 
+    # Add ride to processing queue
     ride_payload = {"ride_id": db_ride.id}
     redis_client.lpush("ride_queue", json.dumps(ride_payload))
+    
+    # Broadcast ride creation to all connected drivers via WebSocket
+    driver_notification = {
+        "type": "ride_created",
+        "event": "new_ride",
+        "ride_id": db_ride.id,
+        "user_id": current_user.id,
+        "pickup": db_ride.pickup,
+        "dropoff": db_ride.dropoff,
+        "status": db_ride.status,
+        "created_at": db_ride.created_at.isoformat() if db_ride.created_at else None,
+        "broadcast_to_drivers": True  # Flag to broadcast only to drivers
+    }
+    redis_client.publish("ride_updates", json.dumps(driver_notification))
+    
     return db_ride
 
 

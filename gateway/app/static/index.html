@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RideNow | Realtime Dashboard</title>
+  <title>RideNow | Real-time Dashboard</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -41,16 +41,10 @@
       background: #111;
       color: #0f0;
       padding: 10px;
-      height: 250px;
+      height: 300px;
       overflow-y: auto;
       border-radius: 6px;
       font-family: monospace;
-    }
-    .ride-box {
-      background: #eef;
-      border-radius: 8px;
-      margin: 5px 0;
-      padding: 8px 10px;
     }
   </style>
 </head>
@@ -59,17 +53,17 @@
 
   <div class="section">
     <h3>Signup</h3>
-    <input id="signupName" placeholder="Name">
-    <input id="signupEmail" placeholder="Email">
-    <input id="signupPassword" type="password" placeholder="Password">
-    <label><input type="checkbox" id="isDriver"> Is Driver</label>
+    <input id="signupName" placeholder="Name" />
+    <input id="signupEmail" placeholder="Email" />
+    <input id="signupPassword" type="password" placeholder="Password" />
+    <label><input type="checkbox" id="isDriver" /> Is Driver</label>
     <button onclick="signup()">Signup</button>
   </div>
 
   <div class="section">
     <h3>Login</h3>
-    <input id="loginEmail" placeholder="Email">
-    <input id="loginPassword" type="password" placeholder="Password">
+    <input id="loginEmail" placeholder="Email" />
+    <input id="loginPassword" type="password" placeholder="Password" />
     <button onclick="login()">Login</button>
   </div>
 
@@ -81,20 +75,22 @@
 
   <div class="section">
     <h3>Ride Actions</h3>
-    <input id="pickup" placeholder="Pickup location">
-    <input id="dropoff" placeholder="Dropoff location">
+    <input id="pickup" placeholder="Pickup location" />
+    <input id="dropoff" placeholder="Dropoff location" />
     <button onclick="requestRide()">Request Ride</button><br>
 
-    <input id="assignRideId" placeholder="Ride ID to assign">
+    <input id="assignRideId" placeholder="Ride ID to assign" />
+    <input id="assignRiderId" placeholder="Rider ID" />
     <button onclick="assignRide()">Assign Ride</button><br>
 
-    <input id="completeRideId" placeholder="Ride ID to complete">
+    <input id="completeRideId" placeholder="Ride ID to complete" />
+    <input id="completeRiderId" placeholder="Rider ID" />
     <button onclick="completeRide()">Complete Ride</button><br>
 
-    <hr>
+    <hr />
     <button onclick="getMyRides()">Get My Rides</button>
     <button onclick="getAllRides()">Get All Rides</button>
-    <input id="rideId" placeholder="Ride ID">
+    <input id="rideId" placeholder="Ride ID" />
     <button onclick="getRideById()">Get Ride by ID</button>
   </div>
 
@@ -106,7 +102,7 @@
   <script>
     let token = null;
     let socket = null;
-    const BASE_URL = "http://localhost:8000"; // Adjust if needed
+    const BASE_URL = "http://localhost:8000"; // Update if needed
 
     function log(msg) {
       const logBox = document.getElementById("log");
@@ -155,42 +151,87 @@
         return;
       }
 
+      // Close existing connection if any
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.close();
+      }
+
       socket = new WebSocket(`ws://localhost:8000/ws?token=${token}`);
+      
       socket.onopen = () => {
         document.getElementById("wsStatus").innerText = "Status: ✅ Connected";
-        log("🟢 WebSocket connected!");
+        log("🟢 WebSocket connected! Waiting for welcome message...");
       };
-      socket.onmessage = (event) => log("📨 WS Message: " + event.data);
-      socket.onclose = () => {
+      
+      socket.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          log("📨 WS: " + JSON.stringify(msg, null, 2));
+          
+          // Handle welcome message
+          if (msg.event === "connected") {
+            log(`✅ Connection confirmed - User ID: ${msg.user_id}, Driver: ${msg.is_driver}`);
+          }
+        } catch (e) {
+          log("⚠️ Failed to parse WS message: " + event.data);
+        }
+      };
+      
+      socket.onclose = (event) => {
         document.getElementById("wsStatus").innerText = "Status: ❌ Disconnected";
-        log("🔴 WebSocket disconnected.");
+        log(`🔴 WebSocket disconnected. Code: ${event.code}, Reason: ${event.reason || 'No reason'}`);
+        socket = null;
       };
-      socket.onerror = (err) => log("⚠️ WebSocket error: " + err);
+      
+      socket.onerror = (err) => {
+        log("⚠️ WebSocket error: " + err);
+      };
+    }
+
+    function sendWS(action, data = {}) {
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        log("⚠️ Connect WebSocket first.");
+        return false;
+      }
+      
+      const message = { action, ...data };
+      socket.send(JSON.stringify(message));
+      log(`➡️ Sent: ${JSON.stringify(message)}`);
+      return true;
     }
 
     function requestRide() {
-      if (!socket || socket.readyState !== WebSocket.OPEN) {
-        log("⚠️ Connect WebSocket first.");
-        return;
-      }
       const pickup = document.getElementById("pickup").value;
       const dropoff = document.getElementById("dropoff").value;
-      socket.send(JSON.stringify({ action: "ride_requested", pickup, dropoff }));
-      log("🚗 Ride requested.");
+      
+      if (!pickup || !dropoff) {
+        log("⚠️ Please enter pickup and dropoff locations");
+        return;
+      }
+      
+      sendWS("ride_requested", { pickup, dropoff });
     }
 
     function assignRide() {
-      const rideId = document.getElementById("assignRideId").value;
-      if (!rideId) return log("⚠️ Enter ride ID");
-      socket.send(JSON.stringify({ action: "ride_assigned", ride_id: parseInt(rideId) }));
-      log(`👨‍✈️ Assigned ride ID ${rideId}.`);
+      const ride_id = document.getElementById("assignRideId").value;
+      
+      if (!ride_id) {
+        log("⚠️ Please enter ride ID");
+        return;
+      }
+      
+      sendWS("ride_assigned", { ride_id: parseInt(ride_id) });
     }
 
     function completeRide() {
-      const rideId = document.getElementById("completeRideId").value;
-      if (!rideId) return log("⚠️ Enter ride ID");
-      socket.send(JSON.stringify({ action: "ride_completed", ride_id: parseInt(rideId) }));
-      log(`🏁 Completed ride ID ${rideId}.`);
+      const ride_id = document.getElementById("completeRideId").value;
+      
+      if (!ride_id) {
+        log("⚠️ Please enter ride ID");
+        return;
+      }
+      
+      sendWS("ride_completed", { ride_id: parseInt(ride_id) });
     }
 
     async function getMyRides() {

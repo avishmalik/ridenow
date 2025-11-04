@@ -6,49 +6,105 @@ import os
 from dotenv import load_dotenv
 import json
 import time
+import asyncio
 
 load_dotenv()
 
+# --- Thread-safe in-memory connection mapping ---
 connections: Dict[int, List[WebSocket]] = {}
 conn_lock = threading.Lock()
 
-redis_client = redis.Redis(host=os.getenv("REDIS_HOST"), port=os.getenv("REDIS_PORT", 6379), decode_responses=True)
+# --- Redis Setup ---
+redis_client = redis.Redis(
+    host=os.getenv("REDIS_HOST", "localhost"),
+    port=int(os.getenv("REDIS_PORT", 6379)),
+    decode_responses=True
+)
 CHANNEL = "ride_updates"
 
+
+# --- Connection Management ---
 def add_connection(user_id: int, websocket: WebSocket):
     with conn_lock:
-        lst = connections.get(user_id, [])
-        if not lst:
-            connections[user_id] = [websocket]
-        else:
-            lst.append(websocket)
+        if user_id not in connections:
+            connections[user_id] = []
+        connections[user_id].append(websocket)
+    print(f"[WS] User {user_id} connected. Total connections: {len(connections[user_id])}")
+
 
 def remove_connection(user_id: int, websocket: WebSocket):
     with conn_lock:
         lst = connections.get(user_id, [])
-        if not lst:
-            return
-        try:
+        if websocket in lst:
             lst.remove(websocket)
-        except ValueError:
-            pass
-        if not lst:
-            del connections[user_id]
+            print(f"[WS] User {user_id} disconnected.")
+            if not lst:
+                del connections[user_id]
 
+
+# --- Message Sending ---
 async def send_to_user(user_id: int, message: dict):
+    """Send a message to all WebSockets of a given user"""
     websockets = []
     with conn_lock:
-        websockets = connections.get(user_id, [])
-    
+        websockets = list(connections.get(user_id, []))
+
     for ws in websockets:
         try:
-            ws.send_text(json.dumps(message))
-        except Exception:
-            pass
+            await ws.send_text(json.dumps(message))
+        except Exception as e:
+            print(f"[WS] Error sending to user {user_id}: {e}")
 
+
+async def broadcast(message: dict):
+    """Send a message to all connected users"""
+    with conn_lock:
+        all_sockets = [ws for lst in connections.values() for ws in lst]
+
+    print(f"[WS] Broadcasting to {len(all_sockets)} clients")
+
+    for ws in all_sockets:
+        try:
+            await ws.send_text(json.dumps(message))
+        except Exception as e:
+            print(f"[WS] Broadcast error: {e}")
+
+
+async def broadcast_to_drivers(message: dict):
+    """Send a message to all connected drivers only"""
+    from app.database import get_db
+    from app.models import User
+    
+    # Get all driver user IDs from database
+    db = next(get_db())
+    try:
+        drivers = db.query(User).filter(User.is_driver == True).all()
+        driver_ids = [driver.id for driver in drivers]
+        
+        with conn_lock:
+            driver_sockets = []
+            for driver_id in driver_ids:
+                if driver_id in connections:
+                    driver_sockets.extend(connections[driver_id])
+        
+        print(f"[WS] Broadcasting to {len(driver_sockets)} driver connections")
+        
+        for ws in driver_sockets:
+            try:
+                await ws.send_text(json.dumps(message))
+            except Exception as e:
+                print(f"[WS] Error sending to driver: {e}")
+    finally:
+        db.close()
+
+
+# --- Redis Listener ---
 def redis_listener(app):
+    """Threaded Redis listener to push messages into event loop"""
     pubsub = redis_client.pubsub(ignore_subscribe_messages=True)
     pubsub.subscribe(CHANNEL)
+
+    print("[WS] Redis listener started, waiting for ride updates...")
 
     while True:
         try:
@@ -59,15 +115,31 @@ def redis_listener(app):
                     data = json.loads(payload)
                 except Exception:
                     continue
+
                 user_id = data.get('user_id')
-                driver_id = data.get("driver_id")
+                driver_id = data.get('driver_id')
 
                 loop = getattr(app, "loop", None)
                 if loop:
+                    # schedule sends asynchronously
                     if user_id:
-                        loop.call_soon_threadsafe(lambda u=user_id, d=data: app.state.ws_forwarder.schedule_send(u, d))
+                        loop.call_soon_threadsafe(
+                            lambda u=user_id, d=data: asyncio.create_task(send_to_user(u, d))
+                        )
                     if driver_id:
-                        loop.call_soon_threadsafe(lambda u=driver_id, d=data: app.state.ws_forwarder.schedule_send(u, d))
-        except Exception:
-            print("Error in redis listener")
+                        loop.call_soon_threadsafe(
+                            lambda u=driver_id, d=data: asyncio.create_task(send_to_user(u, d))
+                        )
+                    # optional broadcast logic
+                    if data.get("broadcast"):
+                        loop.call_soon_threadsafe(
+                            lambda d=data: asyncio.create_task(broadcast(d))
+                        )
+                    # broadcast to all drivers only
+                    if data.get("broadcast_to_drivers"):
+                        loop.call_soon_threadsafe(
+                            lambda d=data: asyncio.create_task(broadcast_to_drivers(d))
+                        )
+        except Exception as e:
+            print(f"[WS] Error in Redis listener: {e}")
             time.sleep(2)
