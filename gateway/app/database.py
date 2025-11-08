@@ -6,11 +6,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-MYSQL_USER = os.getenv("MYSQL_USER")
-MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD")
-MYSQL_DB = os.getenv("MYSQL_DB")
-MYSQL_HOST = os.getenv("MYSQL_HOST")
-MYSQL_PORT = os.getenv("MYSQL_PORT", 3306)
+# MYSQL_USER = os.getenv("MYSQL_USER")
+# MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD")
+# MYSQL_DB = os.getenv("MYSQL_DB")
+# MYSQL_HOST = os.getenv("MYSQL_HOST")
+# MYSQL_PORT = os.getenv("MYSQL_PORT", 3306)
+
+POSTGRES_USER = os.getenv("POSTGRES_USER")
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
+POSTGRES_DB = os.getenv("POSTGRES_DB")
+POSTGRES_HOST = os.getenv("POSTGRES_HOST")
+POSTGRES_PORT = os.getenv("POSTGRES_PORT", 5432)
 
 SQLALCHEMY_DATABASE_URL = (
     f"postgresql+psycopg2://{os.getenv('POSTGRES_USER')}:{os.getenv('POSTGRES_PASSWORD')}"
