@@ -38,7 +38,9 @@ function connectWS() {
 
   updateWSStatus("connecting");
   
-  socket = new WebSocket(`ws://localhost:8000/ws?token=${token}`);
+  const WS_URL = BASE_URL.replace("http", "ws");
+
+  socket = new WebSocket(`${WS_URL}/ws?token=${token}`);
 
   socket.onopen = () => {
     console.log("🟢 WebSocket connected! Waiting for welcome message...");

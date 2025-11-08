@@ -102,7 +102,9 @@
   <script>
     let token = null;
     let socket = null;
-    const BASE_URL = "http://localhost:8000"; // Update if needed
+//     const BASE_URL = "http://localhost:8000"; // Update if needed
+// // 🌍 auto-detect where frontend is served from
+    const BASE_URL = window.location.origin || "http://localhost:8000";
 
     function log(msg) {
       const logBox = document.getElementById("log");

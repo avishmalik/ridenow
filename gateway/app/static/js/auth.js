@@ -1,4 +1,4 @@
-const BASE_URL = "http://localhost:8000";
+const BASE_URL = window.location.origin || "http://localhost:8000";
 
 function showError(message) {
   const errorDiv = document.getElementById("error");
