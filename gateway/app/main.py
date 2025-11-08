@@ -27,7 +27,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-redis_client = redis.Redis(host=os.getenv("REDIS_HOST"), port=int(os.getenv("REDIS_PORT")))
+redis_client = redis.Redis(
+    host=os.getenv("REDIS_HOST"),
+    port=int(os.getenv("REDIS_PORT")),
+    password=os.getenv("REDIS_PASSWORD"),
+    ssl=os.getenv("REDIS_TLS") == "true",
+)
 
 from fastapi.staticfiles import StaticFiles
 app.mount("/static", StaticFiles(directory="gateway/app/static", html=True), name="static")

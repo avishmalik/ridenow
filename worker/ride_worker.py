@@ -14,7 +14,13 @@ import time
 
 load_dotenv()
 
-redis_client = redis.Redis(host=os.getenv("REDIS_HOST"), port=int(os.getenv("REDIS_PORT")))
+redis_client = redis.Redis(
+    host=os.getenv("REDIS_HOST"),
+    port=int(os.getenv("REDIS_PORT")),
+    password=os.getenv("REDIS_PASSWORD"),
+    ssl=os.getenv("REDIS_TLS") == "true",
+)
+
 
 MAX_RETRIES = 5
 RETRY_DELAY = 5

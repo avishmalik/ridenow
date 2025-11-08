@@ -11,10 +11,12 @@ import json
 
 router = APIRouter(prefix="/rides", tags=["Rides"])
 redis_client = redis.Redis(
-    host=os.getenv("REDIS_HOST"), 
+    host=os.getenv("REDIS_HOST"),
     port=int(os.getenv("REDIS_PORT")),
-    decode_responses=True
+    password=os.getenv("REDIS_PASSWORD"),
+    ssl=os.getenv("REDIS_TLS") == "true",
 )
+
 
 @router.post("/", response_model=RideResponse)
 def create_ride(ride: RideCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
