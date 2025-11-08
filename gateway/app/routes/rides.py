@@ -108,3 +108,29 @@ def get_assigned_ride(db: Session = Depends(get_db), current_user: User = Depend
         raise HTTPException(status_code=403, detail="Only drivers can view assigned rides")
     rides = db.query(Ride).filter(Ride.driver_id == current_user.id).all()
     return rides
+
+
+@router.get("/{ride_id}/assign", response_model=RideResponse)
+async def assign_ride(ride_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if not current_user.is_driver:
+        raise HTTPException(status_code=403, detail="Only drivers can assign rides")
+    
+    db_ride = db.query(Ride).filter(Ride.id == ride_id).first()
+    if not db_ride:
+        raise HTTPException(status_code=404, detail="Ride not found")
+    if db_ride.status != "requested":
+        raise HTTPException(status_code=400, detail="Ride already assigned or completed")
+
+    db_ride.driver_id = current_user.id
+    db_ride.status = "assigned"
+    db.commit()
+    db.refresh(db_ride)
+
+    from ..ws_manager import send_to_user
+    send_to_user(db_ride.user_id, {
+        "event": "ride_accept",
+        "ride_id": db_ride.id,
+        "driver_id": current_user.id,
+        "status": "assigned"
+    })
+    return db_ride
