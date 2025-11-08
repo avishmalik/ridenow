@@ -126,6 +126,12 @@ async def websocket_endpoint(websocket: WebSocket, token: str, db: Session = Dep
                 
                 # Driver accepts a ride
                 elif action == "ride_assigned" or action == "ride_accept":
+                    if not user.is_driver:
+                        await websocket.send_json({
+                            "event": "error",
+                            "message": "Only drivers can assign rides"
+                        })
+                        continue
                     ride_id = data.get("ride_id") or (data.get("payload") and data["payload"].get("ride_id"))
                     if not ride_id:
                         await websocket.send_json({
@@ -136,6 +142,18 @@ async def websocket_endpoint(websocket: WebSocket, token: str, db: Session = Dep
                     
                     db_ride = db.query(Ride).filter(Ride.id == ride_id).first()
                     if db_ride:
+                        if not db_ride:
+                            await websocket.send_json({
+                                "event": "error",
+                                "message": "Ride not found"
+                            })
+                            continue
+                        if db_ride.status != "requested":
+                            await websocket.send_json({
+                                "event": "error",
+                                "message": "Ride already assigned or completed"
+                            })
+                            continue
                         db_ride.driver_id = user.id
                         db_ride.status = "assigned"
                         db.commit()
