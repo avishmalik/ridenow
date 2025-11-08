@@ -38,7 +38,10 @@ function connectWS() {
 
   updateWSStatus("connecting");
   
-  socket = new WebSocket(`ws://localhost:8000/ws?token=${token}`);
+  // Auto-detect WebSocket protocol (ws:// for local, wss:// for production)
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsHost = window.location.host;
+  socket = new WebSocket(`${wsProtocol}//${wsHost}/ws?token=${token}`);
 
   socket.onopen = () => {
     console.log("🟢 WebSocket connected! Waiting for welcome message...");

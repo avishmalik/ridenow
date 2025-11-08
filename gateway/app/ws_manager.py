@@ -1,7 +1,6 @@
 from fastapi import WebSocket
 from typing import List, Dict
 import threading
-import redis
 import os
 from dotenv import load_dotenv
 import json
@@ -14,12 +13,31 @@ load_dotenv()
 connections: Dict[int, List[WebSocket]] = {}
 conn_lock = threading.Lock()
 
-# --- Redis Setup ---
-redis_client = redis.Redis(
-    host=os.getenv("REDIS_HOST", "localhost"),
-    port=int(os.getenv("REDIS_PORT", 6379)),
-    decode_responses=True
-)
+# --- Redis Setup (Optional) ---
+redis_client = None
+REDIS_AVAILABLE = False
+
+try:
+    import redis
+    redis_host = os.getenv("REDIS_HOST")
+    redis_port = os.getenv("REDIS_PORT")
+    
+    if redis_host and redis_port:
+        redis_client = redis.Redis(
+            host=redis_host,
+            port=int(redis_port),
+            decode_responses=True,
+            socket_connect_timeout=2
+        )
+        # Test connection
+        redis_client.ping()
+        REDIS_AVAILABLE = True
+        print("[WS] Redis connected and available")
+    else:
+        print("[WS] Redis not configured, using direct WebSocket broadcasting")
+except Exception as e:
+    print(f"[WS] Redis not available: {e}. Using direct WebSocket broadcasting only.")
+
 CHANNEL = "ride_updates"
 
 
@@ -98,48 +116,74 @@ async def broadcast_to_drivers(message: dict):
         db.close()
 
 
-# --- Redis Listener ---
+# --- Redis Listener (Optional) ---
 def redis_listener(app):
     """Threaded Redis listener to push messages into event loop"""
-    pubsub = redis_client.pubsub(ignore_subscribe_messages=True)
-    pubsub.subscribe(CHANNEL)
+    if not REDIS_AVAILABLE or not redis_client:
+        print("[WS] Redis not available, skipping Redis listener")
+        return
+    
+    try:
+        pubsub = redis_client.pubsub(ignore_subscribe_messages=True)
+        pubsub.subscribe(CHANNEL)
 
-    print("[WS] Redis listener started, waiting for ride updates...")
+        print("[WS] Redis listener started, waiting for ride updates...")
 
-    while True:
-        try:
-            message = pubsub.get_message(timeout=1.0)
-            if message and message.get('type') == 'message':
-                payload = message.get('data')
-                try:
-                    data = json.loads(payload)
-                except Exception:
-                    continue
+        while True:
+            try:
+                message = pubsub.get_message(timeout=1.0)
+                if message and message.get('type') == 'message':
+                    payload = message.get('data')
+                    try:
+                        data = json.loads(payload)
+                    except Exception:
+                        continue
 
-                user_id = data.get('user_id')
-                driver_id = data.get('driver_id')
+                    user_id = data.get('user_id')
+                    driver_id = data.get('driver_id')
 
-                loop = getattr(app, "loop", None)
-                if loop:
-                    # schedule sends asynchronously
-                    if user_id:
-                        loop.call_soon_threadsafe(
-                            lambda u=user_id, d=data: asyncio.create_task(send_to_user(u, d))
-                        )
-                    if driver_id:
-                        loop.call_soon_threadsafe(
-                            lambda u=driver_id, d=data: asyncio.create_task(send_to_user(u, d))
-                        )
-                    # optional broadcast logic
-                    if data.get("broadcast"):
-                        loop.call_soon_threadsafe(
-                            lambda d=data: asyncio.create_task(broadcast(d))
-                        )
-                    # broadcast to all drivers only
-                    if data.get("broadcast_to_drivers"):
-                        loop.call_soon_threadsafe(
-                            lambda d=data: asyncio.create_task(broadcast_to_drivers(d))
-                        )
-        except Exception as e:
-            print(f"[WS] Error in Redis listener: {e}")
-            time.sleep(2)
+                    loop = getattr(app, "loop", None) or getattr(app.state, "loop", None)
+                    if loop:
+                        # schedule sends asynchronously
+                        if user_id:
+                            loop.call_soon_threadsafe(
+                                lambda u=user_id, d=data: asyncio.create_task(send_to_user(u, d))
+                            )
+                        if driver_id:
+                            loop.call_soon_threadsafe(
+                                lambda u=driver_id, d=data: asyncio.create_task(send_to_user(u, d))
+                            )
+                        # optional broadcast logic
+                        if data.get("broadcast"):
+                            loop.call_soon_threadsafe(
+                                lambda d=data: asyncio.create_task(broadcast(d))
+                            )
+                        # broadcast to all drivers only
+                        if data.get("broadcast_to_drivers"):
+                            loop.call_soon_threadsafe(
+                                lambda d=data: asyncio.create_task(broadcast_to_drivers(d))
+                            )
+            except Exception as e:
+                print(f"[WS] Error in Redis listener: {e}")
+                time.sleep(2)
+    except Exception as e:
+        print(f"[WS] Redis listener failed: {e}. Continuing without Redis.")
+
+
+# --- Direct broadcast function (for use without Redis) ---
+def broadcast_message_sync(message: dict, app=None):
+    """Synchronous wrapper to broadcast messages directly via WebSocket"""
+    if app and hasattr(app.state, "loop"):
+        loop = app.state.loop
+        if message.get("broadcast_to_drivers"):
+            loop.call_soon_threadsafe(
+                lambda d=message: asyncio.create_task(broadcast_to_drivers(d))
+            )
+        elif message.get("user_id"):
+            loop.call_soon_threadsafe(
+                lambda u=message.get("user_id"), d=message: asyncio.create_task(send_to_user(u, d))
+            )
+        elif message.get("broadcast"):
+            loop.call_soon_threadsafe(
+                lambda d=message: asyncio.create_task(broadcast(d))
+            )

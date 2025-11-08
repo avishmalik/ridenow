@@ -233,8 +233,12 @@ async def websocket_endpoint(websocket: WebSocket, token: str, db: Session = Dep
                 })
 
     except WebSocketDisconnect:
-        print(f"WebSocket disconnected for user {user.id}")
-        await disconnect_user(user.id)
+        if 'user' in locals() and user:
+            print(f"WebSocket disconnected for user {user.id}")
+            await disconnect_user(user.id)
+        else:
+            print("WebSocket disconnected before user authentication")
     except Exception as e:
         print(f"WebSocket error: {e}")
-        await disconnect_user(user.id)
+        if 'user' in locals() and user:
+            await disconnect_user(user.id)

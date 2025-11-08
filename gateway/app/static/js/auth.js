@@ -1,4 +1,5 @@
-const BASE_URL = "http://localhost:8000";
+// Auto-detect base URL (works for both local and production)
+const BASE_URL = window.location.origin;
 
 function showError(message) {
   const errorDiv = document.getElementById("error");

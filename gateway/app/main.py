@@ -2,7 +2,6 @@ from fastapi import FastAPI, HTTPException, Depends, status
 from dotenv import load_dotenv
 from . import models, database, schemas, auth
 from sqlalchemy.orm import Session
-import redis
 import os
 import time
 from .routes import rides
@@ -21,13 +20,11 @@ app.include_router(ws_routes.router)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # or ["http://127.0.0.1:5500"] if you’re opening HTML in browser
+    allow_origins=["*"],  # or ["http://127.0.0.1:5500"] if you're opening HTML in browser
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-redis_client = redis.Redis(host=os.getenv("REDIS_HOST"), port=int(os.getenv("REDIS_PORT")))
 
 from fastapi.staticfiles import StaticFiles
 app.mount("/static", StaticFiles(directory="gateway/app/static", html=True), name="static")
@@ -93,5 +90,7 @@ async def startup_event():
     app.state.loop = loop
     app.state.ws_forwarder = WsForwarder(loop)
 
+    # Start Redis listener if Redis is available (optional)
     t = threading.Thread(target=redis_listener, args=(app,), daemon=True)
     t.start()
+    print("[App] WebSocket manager initialized (Redis optional)")

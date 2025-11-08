@@ -102,7 +102,7 @@
   <script>
     let token = null;
     let socket = null;
-    const BASE_URL = "http://localhost:8000"; // Update if needed
+    const BASE_URL = window.location.origin; // Auto-detect (works for local and production)
 
     function log(msg) {
       const logBox = document.getElementById("log");
@@ -156,7 +156,10 @@
         socket.close();
       }
 
-      socket = new WebSocket(`ws://localhost:8000/ws?token=${token}`);
+      // Auto-detect WebSocket protocol (ws:// for local, wss:// for production)
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsHost = window.location.host;
+      socket = new WebSocket(`${wsProtocol}//${wsHost}/ws?token=${token}`);
       
       socket.onopen = () => {
         document.getElementById("wsStatus").innerText = "Status: ✅ Connected";
