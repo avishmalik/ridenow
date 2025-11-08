@@ -25,7 +25,7 @@ class LoginRequest(BaseModel):
 class LoginResponse(BaseModel):
     access_token: str
     token_type: str
-
+    is_driver: bool
 # Ride Schemas
 class RideBase(BaseModel):
     pickup: str

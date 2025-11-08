@@ -70,17 +70,16 @@ def signup(user: schemas.UserCreate, db: Session = Depends(database.get_db)):
 
 @app.post("/login", response_model=schemas.LoginResponse)
 def login(login_data: schemas.LoginRequest, db: Session = Depends(database.get_db)):
-    print(login_data)
     db_user = db.query(models.User).filter(models.User.email == login_data.email).first()
     if not db_user or not auth.verify_password(login_data.password, db_user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     token = auth.create_access_token({"sub": str(db_user.id)})
-    return {"access_token": token, "token_type": "bearer"}
+    return {"access_token": token, "token_type": "bearer", "is_driver": db_user.is_driver}
 
 
 @app.get("/")
 def read_root():
-    return FileResponse(os.path.join("gateway/app/static", "index.html"))
+    return FileResponse(os.path.join("gateway/app/static", "login.html"))
 
 
 @app.get("/health")

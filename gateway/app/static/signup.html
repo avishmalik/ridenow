@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RideNow - Signup</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <div class="container">
+    <h2>🚕 RideNow</h2>
+    <h3 style="text-align: center; color: #666; font-size: 18px; margin-bottom: 30px;">Create your account</h3>
+
+    <div id="error" class="error"></div>
+    <div id="success" class="success"></div>
+
+    <input 
+      id="name" 
+      type="text" 
+      placeholder="Full Name" 
+      required
+      autocomplete="name"
+    />
+    <input 
+      id="email" 
+      type="email" 
+      placeholder="Email address" 
+      required
+      autocomplete="email"
+    />
+    <input 
+      id="password" 
+      type="password" 
+      placeholder="Password (min 6 characters)" 
+      required
+      autocomplete="new-password"
+      minlength="6"
+    />
+
+    <label>
+      <input type="checkbox" id="isDriver" />
+      I am a Driver
+    </label>
+
+    <button onclick="signup()">Sign Up</button>
+    
+    <p>
+      Already have an account? <a href="/static/login.html">Login here</a>
+    </p>
+  </div>
+
+  <script src="/static/js/auth.js"></script>
+  <script>
+    // Allow Enter key to submit
+    document.getElementById("password").addEventListener("keypress", function(e) {
+      if (e.key === "Enter") {
+        signup();
+      }
+    });
+  </script>
+</body>
+</html>

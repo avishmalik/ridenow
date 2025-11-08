@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RideNow - Driver Dashboard</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <div id="wsStatus" class="ws-status disconnected">🔴 Disconnected</div>
+  
+  <div class="dashboard-container">
+    <div class="container">
+      <h2>🚗 Driver Dashboard</h2>
+      
+      <div id="error" class="error"></div>
+      <div id="success" class="success"></div>
+
+      <h3>📥 Incoming Ride Requests</h3>
+      <div id="rideRequests"></div>
+
+      <h3 style="margin-top: 30px;">✅ My Assigned Rides</h3>
+      <div id="assignedRides"></div>
+
+      <div style="margin-top: 30px; text-align: center;">
+        <button onclick="logout()" class="danger" style="max-width: 200px; margin: 0 auto;">Logout</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/auth.js"></script>
+  <script src="/static/js/ws.js"></script>
+  <script src="/static/js/rides.js"></script>
+  <script>
+    // Check authentication
+    requireAuth();
+
+    // Load ride requests and assigned rides on page load
+    window.addEventListener("load", () => {
+      loadRideRequests();
+      loadAssignedRides();
+      
+      // Refresh every 5 seconds
+      setInterval(() => {
+        loadRideRequests();
+        loadAssignedRides();
+      }, 5000);
+    });
+  </script>
+</body>
+</html>
